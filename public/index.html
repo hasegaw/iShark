@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#080e16">
+  <meta name="description" content="ishark — a tiny tool that keeps your iPad screen awake while this page is visible.">
+  <title>ishark</title>
+  <link rel="icon" href="logo.png" type="image/png">
+  <style>
+    :root { color-scheme: dark; background: #080e16; color: #9baab9; font-family: system-ui, sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; min-height: 100svh; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); }
+    main { width: 100%; text-align: center; }
+    button { display: block; width: min(320px, 70vw); margin: 0 auto; padding: 0; border: 0; border-radius: 12px; background: transparent; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    button:focus-visible { outline: 2px solid #b4dfff; outline-offset: 8px; }
+    button:disabled { cursor: default; }
+    img { display: block; width: 100%; height: auto; }
+    p { margin: 12px 0 0; min-height: 2.8em; font-size: 12px; line-height: 1.6; letter-spacing: .04em; }
+    [data-active="true"] { color: #a9c5b9; }
+    [data-active="true"]::before { content: ""; display: inline-block; width: 5px; height: 5px; margin: 0 7px 2px 0; border-radius: 50%; background: currentColor; }
+  </style>
+</head>
+<body>
+  <main aria-label="ishark">
+    <button id="retry" type="button" aria-label="Retry keeping the screen awake">
+      <img src="logo.png" width="1280" height="1280" alt="ishark — shark logo" draggable="false">
+    </button>
+    <p id="status" role="status" aria-live="polite" aria-atomic="true"></p>
+    <noscript><p>JavaScript is required to keep the screen awake.</p></noscript>
+  </main>
+  <script>
+    const status = document.querySelector('#status');
+    const retry = document.querySelector('#retry');
+    let wakeLock = null;
+    let requesting = false;
+
+    function show(message, active = false) {
+      status.textContent = message;
+      status.dataset.active = String(active);
+    }
+
+    async function keepAwake() {
+      if (!window.isSecureContext || !('wakeLock' in navigator)) {
+        show('Screen Wake Lock is unavailable. Use HTTPS and a supported browser.');
+        retry.disabled = true;
+        return;
+      }
+      if (document.visibilityState !== 'visible' || requesting || (wakeLock && !wakeLock.released)) return;
+
+      requesting = true;
+      show('Keeping the screen awake…');
+      try {
+        const lock = await navigator.wakeLock.request('screen');
+        wakeLock = lock;
+        lock.addEventListener('release', () => {
+          if (wakeLock !== lock) return;
+          wakeLock = null;
+          show('Screen Wake Lock is off. Tap the logo to retry.');
+        });
+        if (lock.released) {
+          wakeLock = null;
+          show('Screen Wake Lock is off. Tap the logo to retry.');
+        } else {
+          show('Keeping your screen awake', true);
+        }
+      } catch {
+        show('Could not keep the screen awake. Tap the logo to retry.');
+      } finally {
+        requesting = false;
+      }
+    }
+
+    retry.addEventListener('click', keepAwake);
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') keepAwake();
+    });
+    window.addEventListener('pageshow', keepAwake);
+    keepAwake();
+  </script>
+</body>
+</html>
